@@ -1,0 +1,44 @@
+{
+  "name": "POS Abarrotes & Granel",
+  "short_name": "POS Granel",
+  "description": "Sistema Punto de Venta (POS) Neo-Brutalista Offline-First para abarrotes, pesaje a granel, control de inventario y arqueo de turnos.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f0e8",
+  "theme_color": "#ffcc00",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "./favicon.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./favicon-64.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

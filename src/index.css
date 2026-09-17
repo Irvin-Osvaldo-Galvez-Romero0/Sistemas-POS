@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Space Mono', monospace;
+
+  --color-canvas: #f5f0e8;
+  --color-ink: #1a1a1a;
+  --color-brutal-yellow: #ffcc00;
+  --color-brutal-blue: #38bdf8;
+  --color-brutal-green: #22c55e;
+  --color-brutal-red: #ef4444;
+  --color-brutal-orange: #fb923c;
+  --color-brutal-purple: #c084fc;
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .font-mono-code {
+    font-family: 'Space Mono', monospace;
+  }
+  
+  .brutal-card {
+    background-color: #ffffff;
+    border: 2.5px solid #1a1a1a;
+    box-shadow: 3.5px 3.5px 0px #1a1a1a;
+  }
+  
+  .brutal-card-sm {
+    background-color: #ffffff;
+    border: 2px solid #1a1a1a;
+    box-shadow: 2px 2px 0px #1a1a1a;
+  }
+
+  .brutal-card-lg {
+    background-color: #ffffff;
+    border: 3px solid #1a1a1a;
+    box-shadow: 5px 5px 0px #1a1a1a;
+  }
+
+  .brutal-btn {
+    border: 2.5px solid #1a1a1a;
+    box-shadow: 3px 3px 0px #1a1a1a;
+    transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+  }
+
+  .brutal-btn:hover {
+    box-shadow: 4px 4px 0px #1a1a1a;
+  }
+
+  .brutal-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0px #1a1a1a;
+  }
+
+  .brutal-input {
+    border: 2.5px solid #1a1a1a;
+    box-shadow: inset 2px 2px 0px rgba(0, 0, 0, 0.06);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .brutal-input:focus {
+    box-shadow: 3px 3px 0px #ffcc00;
+    border-color: #1a1a1a;
+  }
+}
+
+/* Custom Scrollbars for POS */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f5f0e8;
+  border-left: 2px solid #1a1a1a;
+}
+::-webkit-scrollbar-thumb {
+  background: #1a1a1a;
+  border: 1px solid #f5f0e8;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ffcc00;
+}
+
+.inventory-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #1a1a1a #f5f0e8;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.inventory-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.inventory-scrollbar::-webkit-scrollbar-track {
+  background: #f5f0e8;
+  border-left: 2px solid #1a1a1a;
+  border-top: 2px solid #1a1a1a;
+}
+.inventory-scrollbar::-webkit-scrollbar-thumb {
+  background: #1a1a1a;
+  border: 2px solid #f5f0e8;
+}
+.inventory-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #ffcc00;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.03); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 1.8s infinite ease-in-out;
+}
+

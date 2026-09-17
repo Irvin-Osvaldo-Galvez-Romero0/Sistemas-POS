@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Neo-brutalist Background with hard shadow -->
+  <rect x="32" y="32" width="448" height="448" rx="48" fill="#1a1a1a"/>
+  <rect x="20" y="20" width="448" height="448" rx="48" fill="#ffcc00" stroke="#1a1a1a" stroke-width="24"/>
+  
+  <!-- POS Cash Register / Scale Graphic -->
+  <g fill="#1a1a1a">
+    <!-- Top Display Screen -->
+    <rect x="116" y="88" width="280" height="96" rx="16" fill="#1a1a1a"/>
+    <rect x="132" y="104" width="248" height="64" rx="8" fill="#22c55e"/>
+    <!-- Digital numbers on green display -->
+    <text x="256" y="148" font-family="monospace" font-weight="900" font-size="36" fill="#1a1a1a" text-anchor="middle">$ 0.00</text>
+    
+    <!-- Register Base -->
+    <rect x="96" y="216" width="320" height="192" rx="20" fill="#1a1a1a"/>
+    <rect x="112" y="232" width="288" height="160" rx="12" fill="#f5f0e8" stroke="#1a1a1a" stroke-width="12"/>
+    
+    <!-- Keypad Grid -->
+    <rect x="136" y="256" width="36" height="30" rx="4" fill="#1a1a1a"/>
+    <rect x="184" y="256" width="36" height="30" rx="4" fill="#1a1a1a"/>
+    <rect x="232" y="256" width="36" height="30" rx="4" fill="#1a1a1a"/>
+    
+    <rect x="136" y="298" width="36" height="30" rx="4" fill="#1a1a1a"/>
+    <rect x="184" y="298" width="36" height="30" rx="4" fill="#1a1a1a"/>
+    <rect x="232" y="298" width="36" height="30" rx="4" fill="#1a1a1a"/>
+    
+    <rect x="136" y="340" width="36" height="30" rx="4" fill="#1a1a1a"/>
+    <rect x="184" y="340" width="36" height="30" rx="4" fill="#1a1a1a"/>
+    <rect x="232" y="340" width="36" height="30" rx="4" fill="#1a1a1a"/>
+
+    <!-- Big Action Button (Enter / Cobrar) -->
+    <rect x="288" y="256" width="92" height="114" rx="8" fill="#ffcc00" stroke="#1a1a1a" stroke-width="8"/>
+    <!-- Scale icon / check on enter button -->
+    <path d="M334 290 L324 316 L344 316 Z" fill="#1a1a1a"/>
+    <line x1="334" y1="280" x2="334" y2="336" stroke="#1a1a1a" stroke-width="6" stroke-linecap="round"/>
+    <line x1="312" y1="336" x2="356" y2="336" stroke="#1a1a1a" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+{
+  "name": "POS Abarrotes & Granel",
+  "description": "Sistema Punto de Venta (POS) Neo-Brutalista offline-first para abarrotes, pesaje a granel, control de inventario y arqueo de turnos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

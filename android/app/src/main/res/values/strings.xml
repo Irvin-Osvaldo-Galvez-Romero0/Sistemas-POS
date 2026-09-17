@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">POS Abarrotes &amp; Granel</string>
+    <string name="title_activity_main">POS Abarrotes &amp; Granel</string>
+    <string name="package_name">com.pos.abarrotes</string>
+    <string name="custom_url_scheme">com.pos.abarrotes</string>
+</resources>
