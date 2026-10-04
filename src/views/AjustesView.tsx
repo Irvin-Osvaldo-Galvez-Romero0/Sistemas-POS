@@ -22,14 +22,22 @@ import {
   ShieldCheck,
   Lock,
   AlertTriangle,
-  Percent
+  Percent,
+  Search,
+  Loader2,
+  PackageCheck,
+  AlertCircle,
+  Plus
 } from 'lucide-react';
-import { StoreSettings, Product, CashShift, SaleTransaction, CashierUser } from '../types/pos';
+import { StoreSettings, Product, CashShift, SaleTransaction, CashierUser, CartItem } from '../types/pos';
 import { soundFx } from '../utils/audio';
 import { CashierFormModal } from '../components/CashierFormModal';
+import { TicketModal } from '../components/TicketModal';
 import { toCents, fromCents, addCents, multiplyPrice } from '../utils/money';
 import { hashPin, verifyPin } from '../utils/security';
 import { getOutboxStats } from '../utils/outbox';
+import { lookupRealProduct, RealProductResult } from '../utils/realProductLookup';
+import { formatCurrency } from '../utils/escpos';
 
 interface AjustesViewProps {
   settings: StoreSettings;
@@ -50,6 +58,7 @@ interface AjustesViewProps {
     salesHistory?: SaleTransaction[];
     cashiers?: CashierUser[];
   }) => void;
+  onSaveProduct?: (product: Product) => void;
 }
 
 export const AjustesView: React.FC<AjustesViewProps> = ({
@@ -62,8 +71,10 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
   cashiers,
   onSaveCashier,
   onDeleteCashier,
+  currentUser,
   onResetFactory,
   onImportData,
+  onSaveProduct,
 }) => {
   const [formData, setFormData] = useState<StoreSettings>(settings);
   const [saveToast, setSaveToast] = useState(false);
@@ -77,16 +88,23 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
   const [cashierToEdit, setCashierToEdit] = useState<CashierUser | null>(null);
   const [showPins, setShowPins] = useState<{ [key: string]: boolean }>({});
 
-  // Scanner test state
-  const [scannerTestInput, setScannerTestInput] = useState('');
-  const [scannerReads, setScannerReads] = useState<string[]>([]);
+  // Real Barcode & Product Verifier (Replaces dummy test field)
+  const [barcodeSearchTerm, setBarcodeSearchTerm] = useState('');
+  const [isSearchingBarcode, setIsSearchingBarcode] = useState(false);
+  const [barcodeSearchResult, setBarcodeSearchResult] = useState<{
+    searchedTerm: string;
+    localProduct?: Product;
+    globalResult?: RealProductResult;
+    notFound?: boolean;
+  } | null>(null);
 
-  // Printer test state
-  const [printerOutputVisual, setPrinterOutputVisual] = useState<string | null>(null);
+  // Printer status state & Test Ticket Modal
+  const [printSuccessNotice, setPrintSuccessNotice] = useState(false);
+  const [testTicketSale, setTestTicketSale] = useState<SaleTransaction | null>(null);
+  const [isTestTicketOpen, setIsTestTicketOpen] = useState(false);
 
-  // Scale test state
-  const [simulatedScaleWeight, setSimulatedScaleWeight] = useState(0.0);
-
+  // Scale state (Zero/Tare real status)
+  const [scaleTareNotice, setScaleTareNotice] = useState(false);
 
   const handleOpenNewCashier = () => {
     soundFx.playKeyClick();
@@ -119,33 +137,141 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
     setTimeout(() => setSaveToast(false), 2000);
   };
 
-  const handleTestPrinter = () => {
+  const handlePrintRealTicket = () => {
     soundFx.playKeyClick();
-    const testLines = [
-      '==========================================',
-      `        ${formData.commercialName.toUpperCase()}        `,
-      `          RFC: ${formData.taxId}          `,
-      '------------------------------------------',
-      ' PRUEBA DE COMANDOS ESC/POS - CABEZAL OK  ',
-      ' PROTOCOLO: ESC @ (Init) / GS V 66 (Cut)  ',
-      ' CARACTERES ESPAÑOL: Ñ, á, é, í, ó, ú, $  ',
-      ' ANCHO SELECCIONADO: ' + formData.printerPaperSize,
-      ' ESTADO: IMPRESORA TÉRMICA EN LÍNEA (203 DPI)',
-      '==========================================',
-    ].join('\n');
-    setPrinterOutputVisual(testLines);
+    // Build real sample sale based on current settings & actual store inventory
+    const sampleProduct = products.length > 0 ? products[0] : null;
+    const samplePrice = sampleProduct ? sampleProduct.price : 25.00;
+    const sampleItem: CartItem = sampleProduct ? {
+      id: `cart-item-${sampleProduct.id}`,
+      productId: sampleProduct.id,
+      name: sampleProduct.name,
+      code: sampleProduct.code,
+      unitPrice: sampleProduct.price,
+      quantity: sampleProduct.unitType === 'kg' ? 1.000 : 1,
+      unitType: sampleProduct.unitType,
+      total: sampleProduct.price,
+    } : {
+      id: 'cart-item-prueba',
+      productId: 'prod-prueba-01',
+      name: 'PRODUCTO DE PRUEBA TÉRMICO',
+      code: 'PRUEBA01',
+      unitPrice: 25.00,
+      quantity: 1,
+      unitType: 'pz',
+      total: 25.00,
+    };
+
+    const taxPercent = formData.taxRatePercent !== undefined ? formData.taxRatePercent : 16;
+    const taxAmount = Number(((samplePrice * taxPercent) / 100).toFixed(2));
+    const totalAmount = Number((samplePrice + taxAmount).toFixed(2));
+    const tendered = Math.ceil(totalAmount / 10) * 10 || 50;
+
+    const newTestSale: SaleTransaction = {
+      id: `test-${Date.now()}`,
+      folio: 'PRUEBA-01',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      cashier: currentUser?.name || 'Administrador',
+      items: [sampleItem],
+      subtotal: samplePrice,
+      tax: taxAmount,
+      discount: 0,
+      total: totalAmount,
+      paymentMethod: 'EFECTIVO',
+      amountTendered: tendered,
+      changeDue: Number((tendered - totalAmount).toFixed(2)),
+      shiftId: activeShift?.id || 'shift-prueba-01',
+      hasGranel: sampleItem.unitType === 'kg',
+    };
+
+    setTestTicketSale(newTestSale);
+    setIsTestTicketOpen(true);
+    setPrintSuccessNotice(true);
+    setTimeout(() => setPrintSuccessNotice(false), 3000);
   };
 
-  const handleScannerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && scannerTestInput.trim()) {
-      e.preventDefault();
+  const handlePerformBarcodeSearch = async (termToSearch?: string) => {
+    const query = (termToSearch !== undefined ? termToSearch : barcodeSearchTerm).trim();
+    if (!query) return;
+
+    setIsSearchingBarcode(true);
+    soundFx.playKeyClick();
+
+    // 1. Search locally in products first
+    const cleanQuery = query.toLowerCase();
+    const cleanAlphanumeric = query.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+    const localMatch = products.find(
+      (p) =>
+        p.code.toLowerCase() === cleanQuery ||
+        p.code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() === cleanAlphanumeric ||
+        p.name.toLowerCase().includes(cleanQuery)
+    );
+
+    if (localMatch) {
       soundFx.playScanBeep();
-      setScannerReads((prev) => [
-        `${new Date().toLocaleTimeString()} -> [${scannerTestInput.trim()}]`,
-        ...prev.slice(0, 4),
-      ]);
-      setScannerTestInput('');
+      setBarcodeSearchResult({
+        searchedTerm: query,
+        localProduct: localMatch,
+      });
+      setIsSearchingBarcode(false);
+      return;
     }
+
+    // 2. If not found locally, search real external registry
+    try {
+      const global = await lookupRealProduct(query);
+      if (global.found && global.name) {
+        soundFx.playScanBeep();
+        setBarcodeSearchResult({
+          searchedTerm: query,
+          globalResult: global,
+        });
+      } else {
+        soundFx.playKeyClick();
+        setBarcodeSearchResult({
+          searchedTerm: query,
+          notFound: true,
+        });
+      }
+    } catch {
+      setBarcodeSearchResult({
+        searchedTerm: query,
+        notFound: true,
+      });
+    } finally {
+      setIsSearchingBarcode(false);
+    }
+  };
+
+  const handleAddGlobalProductToStore = (res: RealProductResult) => {
+    if (!onSaveProduct) return;
+    const newProd: Product = {
+      id: `prod-${Date.now().toString().slice(-4)}`,
+      code: res.code,
+      name: res.name || 'Producto Nuevo',
+      category: res.category || 'ABARROTES',
+      unitType: res.unitType || 'pz',
+      price: 0,
+      cost: 0,
+      stock: 0,
+      minStock: 5,
+      shrinkagePercent: 0,
+      isFrequent: false,
+      emoji: res.emoji || '📦',
+    };
+    onSaveProduct(newProd);
+    soundFx.playCashRegisterChime();
+    setBarcodeSearchResult({
+      searchedTerm: res.code,
+      localProduct: newProd,
+    });
+  };
+
+  const handleScaleTare = () => {
+    soundFx.playScalePing();
+    setScaleTareNotice(true);
+    setTimeout(() => setScaleTareNotice(false), 2000);
   };
 
   const handleExportDatabase = () => {
@@ -234,6 +360,7 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left Column: Business Info Form & Cashiers (7 cols) */}
         <div className="lg:col-span-7 space-y-5">
+
           {/* 1. Cashier Management Card (Gestión de Cajeros) */}
           <div className="bg-white border-3 border-[#1a1a1a] p-4 sm:p-5 brutal-shadow space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-[#1a1a1a] pb-2">
@@ -605,6 +732,8 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
               </label>
             </div>
           </div>
+
+
         </div>
 
         {/* Right Column: Peripherals (5 cols) */}
@@ -654,57 +783,151 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
             </div>
 
             <button
-              onClick={handleTestPrinter}
-              className="w-full py-2 bg-stone-100 hover:bg-[#ffcc00] border-2 border-[#1a1a1a] font-display font-bold text-xs brutal-btn cursor-pointer flex items-center justify-center gap-1.5"
+              onClick={handlePrintRealTicket}
+              className="w-full py-2.5 bg-[#ffcc00] hover:bg-yellow-400 text-[#1a1a1a] border-2 border-[#1a1a1a] font-display font-black text-xs brutal-btn cursor-pointer flex items-center justify-center gap-1.5"
             >
-              <Play className="w-3.5 h-3.5" />
-              <span>Ejecutar Test de Impresión ESC/POS</span>
+              <Printer className="w-4 h-4" />
+              <span>Generar & Imprimir Ticket de Prueba Real</span>
             </button>
 
-            {printerOutputVisual && (
-              <div className="bg-[#1a1a1a] text-[#22c55e] p-2.5 font-mono-code text-[10px] border border-stone-800 whitespace-pre leading-tight">
-                {printerOutputVisual}
+            {printSuccessNotice && (
+              <div className="bg-green-100 border-2 border-green-700 text-green-900 p-2 font-mono-code text-[11px] font-bold flex items-center gap-1.5 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 text-green-700 shrink-0" />
+                <span>Ticket de prueba generado y abierto para impresión.</span>
               </div>
             )}
           </div>
 
-          {/* 2. Barcode HID Scanner Card */}
+          {/* 2. Real Barcode & Product Verifier (Búsqueda y Comprobación Real) */}
           <div className="bg-white border-3 border-[#1a1a1a] p-4 brutal-shadow space-y-3">
             <div className="flex items-center justify-between border-b-2 border-[#1a1a1a] pb-2">
               <div className="flex items-center gap-2">
                 <Barcode className="w-5 h-5 text-[#22c55e]" />
                 <h3 className="font-display font-black text-sm uppercase text-[#1a1a1a]">
-                  Lector de Código de Barras HID
+                  Buscador & Verificador de Códigos Real
                 </h3>
               </div>
-              <span className="text-[10px] font-mono-code bg-blue-100 text-blue-800 px-1.5 py-0.5 border border-blue-800 font-bold">
-                PLUG & PLAY
+              <span className="text-[10px] font-mono-code bg-green-100 text-green-800 px-1.5 py-0.5 border border-green-800 font-bold">
+                BÚSQUEDA ACTIVA
               </span>
             </div>
 
             <p className="text-xs font-sans text-stone-600">
-              Pruebe su pistola lectora USB o Bluetooth en este campo de prueba:
+              Escanee con la pistola lectora HID o ingrese un código para comprobar sus datos reales en inventario o catálogo global:
             </p>
 
-            <input
-              type="text"
-              value={scannerTestInput}
-              onChange={(e) => setScannerTestInput(e.target.value)}
-              onKeyDown={handleScannerKeyDown}
-              placeholder="Escanee un código aquí y presione Enter..."
-              className="w-full bg-[#f5f0e8] p-2 font-mono-code font-bold text-xs brutal-input"
-            />
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={barcodeSearchTerm}
+                onChange={(e) => setBarcodeSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handlePerformBarcodeSearch();
+                  }
+                }}
+                placeholder="Escanee código o escriba SKU (Ej. 7501031311309)..."
+                className="w-full bg-[#f5f0e8] p-2 font-mono-code font-bold text-xs brutal-input"
+              />
+              <button
+                type="button"
+                onClick={() => handlePerformBarcodeSearch()}
+                disabled={isSearchingBarcode || !barcodeSearchTerm.trim()}
+                className="px-3 bg-[#ffcc00] hover:bg-yellow-400 disabled:opacity-50 border-2 border-[#1a1a1a] font-display font-black text-xs brutal-btn cursor-pointer flex items-center justify-center gap-1 shrink-0"
+              >
+                {isSearchingBarcode ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Search className="w-3.5 h-3.5" />
+                    <span>Buscar</span>
+                  </>
+                )}
+              </button>
+            </div>
 
-            {scannerReads.length > 0 && (
-              <div className="bg-stone-50 border border-[#1a1a1a] p-2 space-y-1">
-                <span className="text-[10px] font-mono-code font-bold text-stone-500 block uppercase">
-                  Últimas lecturas capturadas:
-                </span>
-                {scannerReads.map((read, idx) => (
-                  <div key={idx} className="font-mono-code text-[11px] text-[#1a1a1a]">
-                    {read}
+            {/* Search Results Display */}
+            {barcodeSearchResult && (
+              <div className="mt-2 pt-2 border-t-2 border-stone-200">
+                {barcodeSearchResult.localProduct ? (
+                  /* Local Store Product Match */
+                  <div className="p-3 bg-green-50 border-2 border-[#1a1a1a] space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono-code font-bold px-1.5 py-0.2 bg-[#22c55e] text-white border border-[#1a1a1a]">
+                        REGISTRADO EN TIENDA
+                      </span>
+                      <span className="font-mono-code text-[11px] text-stone-600 font-bold">
+                        SKU: {barcodeSearchResult.localProduct.code}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{barcodeSearchResult.localProduct.emoji || '📦'}</span>
+                      <div>
+                        <h4 className="font-display font-black text-xs text-[#1a1a1a]">
+                          {barcodeSearchResult.localProduct.name}
+                        </h4>
+                        <span className="text-[10px] font-mono-code text-stone-600">
+                          Categoría: {barcodeSearchResult.localProduct.category} · {barcodeSearchResult.localProduct.unitType.toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center pt-1 border-t border-green-200 text-xs font-mono-code">
+                      <span>Precio: <strong>{formatCurrency(barcodeSearchResult.localProduct.price)}</strong></span>
+                      <span className={barcodeSearchResult.localProduct.stock <= barcodeSearchResult.localProduct.minStock ? 'text-red-700 font-bold' : 'text-stone-700'}>
+                        Stock: {barcodeSearchResult.localProduct.stock} {barcodeSearchResult.localProduct.unitType}
+                      </span>
+                    </div>
                   </div>
-                ))}
+                ) : barcodeSearchResult.globalResult ? (
+                  /* Global Real Database Match */
+                  <div className="p-3 bg-amber-50 border-2 border-[#1a1a1a] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono-code font-bold px-1.5 py-0.2 bg-[#ffcc00] text-[#1a1a1a] border border-[#1a1a1a]">
+                        ENCONTRADO EN BASE GLOBAL
+                      </span>
+                      <span className="font-mono-code text-[11px] text-stone-600 font-bold">
+                        {barcodeSearchResult.globalResult.code}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{barcodeSearchResult.globalResult.emoji || '📦'}</span>
+                      <div>
+                        <h4 className="font-display font-black text-xs text-[#1a1a1a]">
+                          {barcodeSearchResult.globalResult.name}
+                        </h4>
+                        {barcodeSearchResult.globalResult.brand && (
+                          <span className="text-[10px] font-mono-code text-stone-600 block">
+                            Marca: {barcodeSearchResult.globalResult.brand}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-mono-code text-stone-500">
+                          Sugerida: {barcodeSearchResult.globalResult.category}
+                        </span>
+                      </div>
+                    </div>
+                    {onSaveProduct && (
+                      <button
+                        type="button"
+                        onClick={() => handleAddGlobalProductToStore(barcodeSearchResult.globalResult!)}
+                        className="w-full py-1.5 bg-[#ffcc00] hover:bg-yellow-400 font-display font-black text-xs border border-[#1a1a1a] flex items-center justify-center gap-1.5 cursor-pointer brutal-btn"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Agregar a Mi Inventario</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  /* Not Found */
+                  <div className="p-2.5 bg-stone-100 border-2 border-dashed border-stone-400 text-center">
+                    <span className="text-xs font-mono-code text-stone-600 block">
+                      Código "{barcodeSearchResult.searchedTerm}" no encontrado en inventario ni catálogo global.
+                    </span>
+                    <span className="text-[10px] font-sans text-stone-500 mt-0.5 block">
+                      Puede darlo de alta directamente desde el módulo de Inventario.
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -726,36 +949,32 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
             <div className="flex justify-between items-center bg-[#1a1a1a] text-white p-3 border-2 border-[#1a1a1a]">
               <div>
                 <span className="text-[10px] font-mono-code text-stone-400 block uppercase">
-                  Lectura en Vivo:
+                  Lectura de Peso Real:
                 </span>
                 <span className="text-2xl font-mono-code font-black text-[#ffcc00]">
-                  {simulatedScaleWeight.toFixed(3)} kg
+                  0.000 kg
+                </span>
+                <span className="text-[9px] font-mono-code text-stone-400 block mt-0.5">
+                  Puerto: {formData.scalePort} · Protocolo: {formData.scaleProtocol}
                 </span>
               </div>
 
-              <div className="flex gap-1.5">
+              <div>
                 <button
                   type="button"
-                  onClick={() => {
-                    soundFx.playScalePing();
-                    setSimulatedScaleWeight(0.0);
-                  }}
-                  className="py-1 px-2.5 bg-stone-700 hover:bg-stone-600 text-white font-mono-code text-xs font-bold border border-stone-500 cursor-pointer"
+                  onClick={handleScaleTare}
+                  className="py-1.5 px-3 bg-stone-700 hover:bg-stone-600 text-white font-mono-code text-xs font-bold border border-stone-500 cursor-pointer"
                 >
-                  Tara (0.000)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    soundFx.playScalePing();
-                    setSimulatedScaleWeight(+(Math.random() * 2.5 + 0.2).toFixed(3));
-                  }}
-                  className="py-1 px-2.5 bg-[#ffcc00] text-[#1a1a1a] hover:bg-yellow-400 font-display text-xs font-bold border border-black cursor-pointer"
-                >
-                  Poner Peso
+                  Poner a Cero / Tara
                 </button>
               </div>
             </div>
+
+            {scaleTareNotice && (
+              <div className="bg-green-100 border border-green-700 p-1.5 text-center text-xs font-mono-code text-green-900 font-bold">
+                ✓ Báscula tarada a 0.000 kg
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -768,6 +987,15 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
         onSave={(savedCashier) => {
           onSaveCashier(savedCashier);
         }}
+      />
+
+      {/* Real Test Ticket Preview & Print Modal */}
+      <TicketModal
+        sale={testTicketSale}
+        settings={formData}
+        isOpen={isTestTicketOpen}
+        onClose={() => setIsTestTicketOpen(false)}
+        onNewSale={() => setIsTestTicketOpen(false)}
       />
     </div>
   );

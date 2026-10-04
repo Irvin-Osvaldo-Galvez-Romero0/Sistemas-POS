@@ -1,16 +1,18 @@
 import { SaleTransaction, CashShift, StoreSettings } from '../types/pos';
 
 export const formatCurrency = (amount: number): string => {
+  const safe = typeof amount === 'number' && !isNaN(amount) ? amount : 0;
   return new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency: 'MXN',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
-  }).format(amount);
+  }).format(safe);
 };
 
 export const formatWeight = (kg: number): string => {
-  return `${kg.toFixed(3)} kg`;
+  const safe = typeof kg === 'number' && !isNaN(kg) ? kg : 0;
+  return `${safe.toFixed(3)} kg`;
 };
 
 export const generateSaleReceiptText = (
@@ -47,9 +49,17 @@ export const generateSaleReceiptText = (
   out += dashed + '\n';
 
   sale.items.forEach((item) => {
-    const qtyStr = item.unitType === 'kg' ? `${item.quantity.toFixed(3)}kg @ $${item.unitPrice.toFixed(2)}` : `${item.quantity} pz @ $${item.unitPrice.toFixed(2)}`;
-    out += `${item.name.substring(0, width)}\n`;
-    out += row(`  ${qtyStr}`, formatCurrency(item.total)) + '\n';
+    const qty = typeof item.quantity === 'number' ? item.quantity : 1;
+    const unitPrice = typeof item.unitPrice === 'number' 
+      ? item.unitPrice 
+      : (typeof (item as any).price === 'number' ? (item as any).price : 0);
+    const itemTotal = typeof item.total === 'number' ? item.total : (qty * unitPrice);
+
+    const qtyStr = item.unitType === 'kg' 
+      ? `${qty.toFixed(3)}kg @ $${unitPrice.toFixed(2)}` 
+      : `${qty} pz @ $${unitPrice.toFixed(2)}`;
+    out += `${(item.name || 'ARTÍCULO').substring(0, width)}\n`;
+    out += row(`  ${qtyStr}`, formatCurrency(itemTotal)) + '\n';
   });
 
   out += dashed + '\n';

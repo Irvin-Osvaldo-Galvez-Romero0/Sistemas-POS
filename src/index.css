@@ -119,3 +119,189 @@
   animation: pulse-subtle 1.8s infinite ease-in-out;
 }
 
+/* =========================================================
+   Thermal Receipt Printing Styles (@media print)
+   Isolates tickets and eliminates all modals, buttons, and UI
+   ========================================================= */
+@media print {
+  @page {
+    margin: 0mm;
+  }
+
+  *, *::before, *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  html, body {
+    width: 58mm !important;
+    max-width: 58mm !important;
+    min-width: 58mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #root,
+  #root > div {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* When ticket, shift cut or label modal is open, completely remove #root (the entire app) from print flow */
+  body.ticket-modal-open > #root,
+  body.shift-cut-modal-open > #root,
+  body.label-modal-open > #root,
+  body:has(#ticket-modal-overlay) > #root,
+  body:has(#shift-cut-modal-overlay) > #root,
+  body:has(#label-modal-overlay) > #root {
+    display: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Make sure modal overlays do not block, color or add margins */
+  #ticket-modal-overlay,
+  #shift-cut-modal-overlay,
+  #label-modal-overlay {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+    transform: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  #ticket-modal-container,
+  #shift-cut-modal,
+  #label-modal-container {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  #ticket-modal-container .overflow-y-auto,
+  #shift-cut-modal .overflow-y-auto {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  /* Specifically hide all non-print elements */
+  .no-print,
+  .no-print *,
+  header,
+  nav,
+  aside,
+  button {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Unhide printable tickets and labels */
+  #printable-ticket,
+  #printable-ticket *,
+  #printable-cut-ticket,
+  #printable-cut-ticket *,
+  #printable-label,
+  #printable-label *,
+  #printable-test-ticket,
+  #printable-test-ticket * {
+    visibility: visible !important;
+  }
+
+  /* Printable receipt in natural flow so page height matches ticket length */
+  #printable-ticket,
+  #printable-cut-ticket,
+  #printable-label,
+  #printable-test-ticket {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 1.5mm 2.5mm 3mm 2.5mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Typography for crisp thermal print */
+  #printable-ticket,
+  #printable-cut-ticket,
+  #printable-label,
+  #printable-test-ticket {
+    font-family: 'Space Mono', 'Courier New', Courier, monospace !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+    color: #000000 !important;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #printable-ticket *,
+  #printable-cut-ticket *,
+  #printable-label *,
+  #printable-test-ticket * {
+    color: #000000 !important;
+    border-color: #000000 !important;
+  }
+
+  /* Force pure black SVG barcode bars */
+  #printable-ticket svg rect,
+  #printable-cut-ticket svg rect,
+  #printable-label svg rect,
+  #printable-test-ticket svg rect {
+    fill: #000000 !important;
+  }
+}
+

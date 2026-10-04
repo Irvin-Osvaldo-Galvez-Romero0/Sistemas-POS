@@ -6,7 +6,22 @@ export type ProductCategory =
   | 'ABARROTES'
   | 'LACTEOS'
   | 'BEBIDAS'
-  | 'LIMPIEZA';
+  | 'BOTANAS'
+  | 'LIMPIEZA'
+  | 'CONGELADOS'
+  | 'MEDICAMENTOS'
+  | 'GENERICOS'
+  | 'CURACION'
+  | 'HIGIENE'
+  | 'CUADERNOS'
+  | 'ESCRITURA'
+  | 'OFICINA'
+  | 'TORNILLERIA'
+  | 'HERRAMIENTAS'
+  | 'ELECTRICO'
+  | 'PLOMERIA'
+  | 'PINTURAS'
+  | string;
 
 export interface Product {
   id: string;
@@ -113,6 +128,7 @@ export interface StoreSettings {
   autoLockMinutes: number;
   encryptionEnabled: boolean;
   defaultStartingCash?: number;
+  businessSector?: 'ABARROTES' | 'MINISUPER' | 'FARMACIA' | 'PAPELERIA' | 'FERRETERIA';
 }
 
 export interface PeripheralStatus {

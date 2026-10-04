@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { X, Check, QrCode, Percent, Sparkles, Scale, Package } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Check, QrCode, Percent, Sparkles, Scale, Package, Search, Loader2, RefreshCw } from 'lucide-react';
 import { Product, ProductCategory, UnitType } from '../types/pos';
 import { soundFx } from '../utils/audio';
 import { Barcode } from './Barcode';
+import { lookupRealProduct } from '../utils/realProductLookup';
 
 interface ProductFormModalProps {
   productToEdit: Product | null;
@@ -21,8 +22,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     id: `prod-${Date.now().toString().slice(-4)}`,
     code: '',
     name: '',
-    category: 'GRANEL',
-    unitType: 'kg',
+    category: 'ABARROTES',
+    unitType: 'pz',
     price: 0,
     cost: 0,
     stock: 0,
@@ -33,23 +34,24 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   });
 
   const [showQRPreview, setShowQRPreview] = useState(false);
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const [lookupFeedback, setLookupFeedback] = useState<{ type: 'success' | 'info' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
+    setLookupFeedback(null);
     if (productToEdit) {
       setFormData(productToEdit);
     } else {
-      // Auto-generate SKU
-      const randomSKU = '750' + Math.floor(1000 + Math.random() * 9000);
       setFormData({
         id: `prod-${Date.now().toString().slice(-4)}`,
-        code: randomSKU,
+        code: '',
         name: '',
         category: 'ABARROTES',
         unitType: 'pz',
         price: 0,
         cost: 0,
-        stock: 10,
+        stock: 0,
         minStock: 5,
         shrinkagePercent: 0,
         isFrequent: false,
@@ -58,6 +60,55 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     }
     setShowQRPreview(false);
   }, [productToEdit, isOpen]);
+
+  // Real product search by barcode
+  const handleLookupRealProduct = useCallback(async (codeToLookup?: string) => {
+    const targetCode = (codeToLookup || formData.code).trim();
+    if (!targetCode) {
+      setLookupFeedback({ type: 'info', message: 'Ingrese o escanee un código de barras primero.' });
+      return;
+    }
+
+    setIsLookingUp(true);
+    setLookupFeedback(null);
+    soundFx.playKeyClick();
+
+    try {
+      const result = await lookupRealProduct(targetCode);
+      if (result.found && result.name) {
+        soundFx.playScanBeep();
+        setFormData((prev) => ({
+          ...prev,
+          code: result.code,
+          name: result.name || prev.name,
+          category: result.category || prev.category,
+          unitType: result.unitType || prev.unitType,
+          emoji: result.emoji || prev.emoji,
+        }));
+        setLookupFeedback({
+          type: 'success',
+          message: `✓ Datos reales encontrados: ${result.name} (${result.category})`,
+        });
+      } else {
+        soundFx.playKeyClick();
+        setLookupFeedback({
+          type: 'info',
+          message: `Código no registrado en base global (${targetCode}). Puede ingresar el nombre manualmente.`,
+        });
+      }
+    } catch {
+      setLookupFeedback({ type: 'error', message: 'No se pudo consultar la base de datos externa.' });
+    } finally {
+      setIsLookingUp(false);
+    }
+  }, [formData.code]);
+
+  const handleGenerateInternalSku = () => {
+    soundFx.playKeyClick();
+    const cleanSku = 'INT-' + Math.floor(100000 + Math.random() * 900000);
+    setFormData((prev) => ({ ...prev, code: cleanSku }));
+    setLookupFeedback({ type: 'info', message: `SKU interno generado: ${cleanSku}` });
+  };
 
   if (!isOpen) return null;
 
@@ -159,27 +210,70 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Code / SKU */}
             <div>
-              <label className="text-xs font-display font-bold uppercase text-[#1a1a1a] block mb-1">
-                Código de Barras / SKU *
-              </label>
-              <div className="flex gap-2">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-display font-bold uppercase text-[#1a1a1a] block">
+                  Código de Barras / SKU *
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGenerateInternalSku}
+                  className="text-[10px] font-mono-code text-blue-700 hover:text-blue-900 underline font-bold cursor-pointer"
+                >
+                  Generar SKU Interno
+                </button>
+              </div>
+              <div className="flex gap-1.5">
                 <input
                   type="text"
                   required
                   value={formData.code}
                   onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  placeholder="Ej. 7501001..."
-                  className="w-full bg-white p-2.5 font-mono-code font-bold text-sm brutal-input"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleLookupRealProduct();
+                    }
+                  }}
+                  placeholder="Escanee o escriba código (Ej. 7501031311309)..."
+                  className="w-full bg-white p-2.5 font-mono-code font-bold text-xs sm:text-sm brutal-input"
                 />
                 <button
                   type="button"
+                  onClick={() => handleLookupRealProduct()}
+                  disabled={isLookingUp}
+                  className="px-3 bg-[#ffcc00] hover:bg-yellow-400 border-2 border-[#1a1a1a] brutal-btn flex items-center justify-center gap-1 cursor-pointer shrink-0 disabled:opacity-50"
+                  title="Comprobar y buscar datos reales del producto"
+                >
+                  {isLookingUp ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4" />
+                      <span className="hidden sm:inline font-display font-black text-xs">Comprobar</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
                   onClick={() => setShowQRPreview(!showQRPreview)}
-                  className="px-3 bg-white hover:bg-[#ffcc00] border-2 border-[#1a1a1a] brutal-btn flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 bg-white hover:bg-stone-100 border-2 border-[#1a1a1a] brutal-btn flex items-center gap-1 cursor-pointer shrink-0"
                   title="Ver QR / Código de Barras"
                 >
                   <QrCode className="w-4 h-4" />
                 </button>
               </div>
+
+              {lookupFeedback && (
+                <div className={`mt-1.5 p-1.5 border text-[11px] font-mono-code font-bold flex items-center gap-1 ${
+                  lookupFeedback.type === 'success'
+                    ? 'bg-green-50 text-green-800 border-green-700'
+                    : lookupFeedback.type === 'error'
+                    ? 'bg-red-50 text-red-800 border-red-700'
+                    : 'bg-amber-50 text-amber-900 border-amber-700'
+                }`}>
+                  <span>{lookupFeedback.message}</span>
+                </div>
+              )}
             </div>
 
             {/* Category */}

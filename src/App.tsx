@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Product, CartItem, PaymentMethod, CashShift, StoreSettings, SaleTransaction, ActiveView, PeripheralStatus, CashierUser } from './types/pos';
 import { 
   loadProducts, 
+  loadProductsAsync,
   saveProducts, 
   loadSettings, 
   saveSettings, 
@@ -87,15 +88,8 @@ export default function App() {
     }).catch(() => {});
   }, []);
 
-  // Auto-purge all products from database/localStorage to ensure a 100% empty inventory
-  useEffect(() => {
-    if (localStorage.getItem('pos_inventory_purged_flag_v4') !== 'true') {
-      localStorage.setItem('pos_inventory_purged_flag_v4', 'true');
-      clearAllProductsFromStorage();
-      setProducts([]);
-      saveProducts([]);
-    }
-  }, []);
+  // Hydration guard to avoid premature saves wiping IndexedDB
+  const isHydratedRef = useRef(false);
 
   // Set default printer paper size to 58mm
   useEffect(() => {
@@ -140,8 +134,34 @@ export default function App() {
     };
   }, [isAuthenticated, settings.autoLockMinutes]);
 
-  // Save changes to localStorage
+  // Enterprise IndexedDB Catalog Hydration (supports 50,000+ SKUs with zero 5MB limits)
   useEffect(() => {
+    let isMounted = true;
+    loadProductsAsync().then((idbProducts) => {
+      if (isMounted) {
+        if (idbProducts && idbProducts.length > 0) {
+          setProducts(idbProducts);
+        } else {
+          // Check local or load default Abarrotes & Granel catalog
+          const local = loadProducts();
+          if (local && local.length > 0) {
+            setProducts(local);
+          } else {
+            setProducts(INITIAL_PRODUCTS);
+            saveProducts(INITIAL_PRODUCTS);
+          }
+        }
+        isHydratedRef.current = true;
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Save changes to storage (IndexedDB enterprise + local fast-cache) only after hydration
+  useEffect(() => {
+    if (!isHydratedRef.current) return;
     saveProducts(products);
   }, [products]);
 
@@ -471,7 +491,7 @@ export default function App() {
     soundFx.playCashRegisterChime();
   };
 
-  // Factory reset demo
+  // Restablecer valores de fábrica del sistema (Clean state)
   const handleResetFactory = () => {
     resetToFactoryDefaults();
     setProducts(INITIAL_PRODUCTS);
@@ -532,6 +552,7 @@ export default function App() {
             currentUser={currentUser}
             onSwitchCashier={() => setIsLoginModalOpen(true)}
             onLogout={handleLogout}
+            onSaveProduct={handleSaveProduct}
           />
         )}
 
@@ -579,6 +600,7 @@ export default function App() {
             onSaveCashier={handleSaveCashier}
             onDeleteCashier={handleDeleteCashier}
             currentUser={currentUser}
+            onSaveProduct={handleSaveProduct}
           />
         )}
       </main>

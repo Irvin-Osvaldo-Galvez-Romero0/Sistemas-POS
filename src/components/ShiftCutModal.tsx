@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Power, Printer, Check, Copy, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react';
 import { CashShift, StoreSettings } from '../types/pos';
 import { soundFx } from '../utils/audio';
@@ -39,19 +40,46 @@ export const ShiftCutModal: React.FC<ShiftCutModalProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Mark body when shift cut modal is open for print isolation
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('shift-cut-modal-open');
+      return () => {
+        document.body.classList.remove('shift-cut-modal-open');
+      };
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div 
       id="shift-cut-modal-overlay"
       className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 select-none animate-in fade-in duration-150"
     >
+      {/* Dynamic @page and sizing for thermal printer */}
+      <style>{`
+        @media print {
+          @page {
+            margin: 0mm;
+          }
+          html, body {
+            width: ${settings.printerPaperSize || '58mm'} !important;
+            max-width: ${settings.printerPaperSize || '58mm'} !important;
+            min-width: ${settings.printerPaperSize || '58mm'} !important;
+          }
+          #printable-cut-ticket {
+            width: ${settings.printerPaperSize || '58mm'} !important;
+            max-width: ${settings.printerPaperSize || '58mm'} !important;
+          }
+        }
+      `}</style>
       <div 
         id="shift-cut-modal"
         className="w-full max-w-lg bg-[#f5f0e8] border-4 border-[#1a1a1a] brutal-shadow-lg flex flex-col max-h-[92vh]"
       >
         {/* Header */}
-        <div className={`p-4 text-white border-b-3 border-[#1a1a1a] flex justify-between items-center ${
+        <div className={`no-print p-4 text-white border-b-3 border-[#1a1a1a] flex justify-between items-center ${
           cutType === 'Z' ? 'bg-[#ef4444]' : 'bg-[#1a1a1a]'
         }`}>
           <div className="flex items-center gap-2">
@@ -69,7 +97,11 @@ export const ShiftCutModal: React.FC<ShiftCutModalProps> = ({
 
         {/* Paper visualizer */}
         <div className="p-4 overflow-y-auto bg-stone-200 flex justify-center">
-          <div className="bg-white border-2 border-[#1a1a1a] p-4 w-full max-w-sm font-mono-code text-xs text-[#1a1a1a] brutal-shadow-sm">
+          <div 
+            id="printable-cut-ticket"
+            data-paper-width={settings.printerPaperSize || '58mm'}
+            className="bg-white border-2 border-[#1a1a1a] p-4 w-full max-w-sm font-mono-code text-xs text-[#1a1a1a] brutal-shadow-sm"
+          >
             <div className="text-center mb-3">
               <h4 className="font-bold text-sm uppercase">{settings.commercialName}</h4>
               <p className="text-[11px] font-bold text-stone-700">*** REPORTE CORTE {cutType} DE CAJA ***</p>
@@ -178,7 +210,7 @@ export const ShiftCutModal: React.FC<ShiftCutModalProps> = ({
 
         {/* Corte Z: Input for starting cash for the next shift */}
         {cutType === 'Z' && onConfirmCloseShift && (
-          <div className="bg-[#ffcc00]/20 border-t-2 border-b-2 border-[#1a1a1a] px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="no-print bg-[#ffcc00]/20 border-t-2 border-b-2 border-[#1a1a1a] px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <label className="font-display font-black text-xs text-[#1a1a1a] uppercase block">
                 Monto que se deja para el siguiente turno ($ MXN):
@@ -223,7 +255,7 @@ export const ShiftCutModal: React.FC<ShiftCutModalProps> = ({
         )}
 
         {/* Footer actions */}
-        <div className="bg-[#f5f0e8] p-4 border-t-2 border-[#1a1a1a] flex flex-col sm:flex-row gap-2 justify-between">
+        <div className="no-print bg-[#f5f0e8] p-4 border-t-2 border-[#1a1a1a] flex flex-col sm:flex-row gap-2 justify-between">
           <div className="flex gap-2">
             <button
               onClick={handlePrint}
@@ -270,6 +302,7 @@ export const ShiftCutModal: React.FC<ShiftCutModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

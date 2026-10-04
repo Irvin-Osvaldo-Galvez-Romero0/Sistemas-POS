@@ -3,13 +3,13 @@ import { Product, StoreSettings, CashShift, CashierUser } from '../types/pos';
 export const INITIAL_PRODUCTS: Product[] = [];
 
 export const INITIAL_SETTINGS: StoreSettings = {
-  businessName: 'ABARROTES Y SEMILLAS EL PUERTO S.A.',
-  commercialName: 'Abarrotes & Granel El Puerto',
-  taxId: 'AGP920412-K78',
-  address: 'Av. Revolución #450, Col. Centro',
-  cityState: 'Morelia, Michoacán, CP 58000',
-  phone: 'Tel. (443) 314-8890',
-  ticketFooter: '¡GRACIAS POR SU COMPRA!\nConserve este ticket para cualquier aclaración\nSistema PWA Neo-Brutalist POS Offline',
+  businessName: 'MISCELÁNEA GÁLVEZ',
+  commercialName: 'Gálvez Miscelánea',
+  taxId: '',
+  address: '',
+  cityState: '',
+  phone: '',
+  ticketFooter: '¡GRACIAS POR SU COMPRA!\nConserve este ticket para cualquier aclaración',
   printerPaperSize: '58mm',
   autoPrintReceipt: true,
   soundBeepEnabled: true,
@@ -25,7 +25,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
 export const INITIAL_SHIFT: CashShift = {
   id: 'shift-101',
   shiftNumber: 1,
-  cashierName: 'Juan Pérez (Cajero Principal)',
+  cashierName: 'Cajero Principal',
   openedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
   closedAt: null,
   startingCash: 0.00,
@@ -55,35 +55,26 @@ export const INITIAL_SHIFT: CashShift = {
     m050: 0
   },
   salesCount: 0,
-  notes: 'Turno aperturado con fondo inicial de $0.00 MXN.'
+  notes: 'Turno aperturado.'
 };
 
 export const INITIAL_CASHIERS: CashierUser[] = [
   {
     id: 'user-01',
-    name: 'Juan Pérez (Cajero Principal)',
+    name: 'Cajero Principal',
     pin: '1234',
     role: 'CAJERO',
     avatar: '👨‍💼',
     active: true,
-    createdAt: '2025-01-01'
+    createdAt: '2026-01-01'
   },
   {
     id: 'user-02',
-    name: 'María Gómez (Supervisora)',
-    pin: '5678',
-    role: 'SUPERVISOR',
-    avatar: '👩‍💼',
-    active: true,
-    createdAt: '2025-01-10'
-  },
-  {
-    id: 'user-03',
-    name: 'Administrador / Propietario',
+    name: 'Administrador',
     pin: '9999',
     role: 'ADMIN',
     avatar: '👑',
     active: true,
-    createdAt: '2025-01-01'
+    createdAt: '2026-01-01'
   }
 ];

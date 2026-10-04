@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Printer, Check, Copy, CheckCircle2, FileText, Code2 } from 'lucide-react';
 import { SaleTransaction, StoreSettings } from '../types/pos';
 import { soundFx } from '../utils/audio';
@@ -46,6 +47,16 @@ export const TicketModal: React.FC<TicketModalProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Mark body when ticket modal is open for print isolation
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('ticket-modal-open');
+      return () => {
+        document.body.classList.remove('ticket-modal-open');
+      };
+    }
+  }, [isOpen]);
+
   // Keyboard shortcut listener
   useEffect(() => {
     if (!isOpen) return;
@@ -61,24 +72,41 @@ export const TicketModal: React.FC<TicketModalProps> = ({
 
   if (!isOpen || !sale) return null;
 
-  return (
+  return createPortal(
     <div 
       id="ticket-modal-overlay"
       className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 select-none animate-in fade-in duration-150"
     >
+      {/* Dynamic @page and sizing for thermal printer */}
+      <style>{`
+        @media print {
+          @page {
+            margin: 0mm;
+          }
+          html, body {
+            width: ${paperWidth} !important;
+            max-width: ${paperWidth} !important;
+            min-width: ${paperWidth} !important;
+          }
+          #printable-ticket {
+            width: ${paperWidth} !important;
+            max-width: ${paperWidth} !important;
+          }
+        }
+      `}</style>
       <div 
         id="ticket-modal-container"
         className="w-full max-w-lg bg-[#f5f0e8] border-4 border-[#1a1a1a] brutal-shadow-lg flex flex-col max-h-[92vh]"
       >
         {/* Top Header */}
-        <div className="bg-[#1a1a1a] text-white p-3.5 flex justify-between items-center border-b-3 border-[#1a1a1a]">
+        <div className="no-print bg-[#1a1a1a] text-white p-3.5 flex justify-between items-center border-b-3 border-[#1a1a1a]">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 bg-[#22c55e] border-2 border-white flex items-center justify-center text-white font-bold text-xs">
               ✓
             </div>
             <div>
               <h3 className="font-display font-black text-base text-[#ffcc00] leading-none">
-                VENTA COMPLETADA
+                {sale.folio?.startsWith('PRUEBA') ? 'TICKET DE PRUEBA REAL' : 'VENTA COMPLETADA'}
               </h3>
               <span className="font-mono-code text-[11px] text-white/70">
                 Folio #{sale.folio}
@@ -103,12 +131,13 @@ export const TicketModal: React.FC<TicketModalProps> = ({
             /* Thermal Paper Visual Receipt */
             <div 
               id="printable-ticket"
+              data-paper-width={paperWidth}
               className={`bg-white border-2 border-[#1a1a1a] p-4 font-mono-code text-xs text-[#1a1a1a] brutal-shadow-sm transition-all ${
                 paperWidth === '80mm' ? 'w-full max-w-sm' : 'w-full max-w-[280px]'
               }`}
             >
               {/* Paper Top Jagged/Dashed Notch */}
-              <div className="text-center font-mono-code text-[10px] text-stone-400 mb-2 border-b border-dashed border-stone-400 pb-1">
+              <div className="no-print text-center font-mono-code text-[10px] text-stone-400 mb-2 border-b border-dashed border-stone-400 pb-1">
                 --- INICIO DE TICKET TÉRMICO ---
               </div>
 
@@ -145,19 +174,27 @@ export const TicketModal: React.FC<TicketModalProps> = ({
                   <span className="col-span-8">DESCRIPCIÓN</span>
                   <span className="col-span-4 text-right">TOTAL</span>
                 </div>
-                {sale.items.map((item) => (
-                  <div key={item.id} className="py-0.5 text-[11px]">
-                    <div className="font-bold truncate">{item.name}</div>
-                    <div className="flex justify-between text-[10px] text-stone-600">
-                      <span>
-                        {item.unitType === 'kg' 
-                          ? `${item.quantity.toFixed(3)} kg x ${formatCurrency(item.unitPrice)}`
-                          : `${item.quantity} pz x ${formatCurrency(item.unitPrice)}`}
-                      </span>
-                      <span className="font-bold text-[#1a1a1a]">{formatCurrency(item.total)}</span>
+                {sale.items.map((item) => {
+                  const qty = typeof item.quantity === 'number' ? item.quantity : 1;
+                  const unitPrice = typeof item.unitPrice === 'number' 
+                    ? item.unitPrice 
+                    : (typeof (item as any).price === 'number' ? (item as any).price : 0);
+                  const total = typeof item.total === 'number' ? item.total : (qty * unitPrice);
+
+                  return (
+                    <div key={item.id} className="py-0.5 text-[11px]">
+                      <div className="font-bold truncate">{item.name || 'Artículo'}</div>
+                      <div className="flex justify-between text-[10px] text-stone-600">
+                        <span>
+                          {item.unitType === 'kg' 
+                            ? `${qty.toFixed(3)} kg x ${formatCurrency(unitPrice)}`
+                            : `${qty} pz x ${formatCurrency(unitPrice)}`}
+                        </span>
+                        <span className="font-bold text-[#1a1a1a]">{formatCurrency(total)}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Totals Breakdown */}
@@ -217,7 +254,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({
         </div>
 
         {/* Paper Size selector bar */}
-        <div className="bg-white border-t-2 border-b-2 border-[#1a1a1a] px-4 py-2 flex justify-between items-center text-xs">
+        <div className="no-print bg-white border-t-2 border-b-2 border-[#1a1a1a] px-4 py-2 flex justify-between items-center text-xs">
           <span className="font-display font-bold text-[#1a1a1a]">
             Ancho de cabezal térmico:
           </span>
@@ -237,7 +274,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({
         </div>
 
         {/* Bottom Actions */}
-        <div className="bg-[#f5f0e8] p-4 flex flex-col sm:flex-row gap-2.5 justify-between">
+        <div className="no-print bg-[#f5f0e8] p-4 flex flex-col sm:flex-row gap-2.5 justify-between">
           <div className="flex gap-2">
             <button
               id="btn-print-ticket"
@@ -268,10 +305,11 @@ export const TicketModal: React.FC<TicketModalProps> = ({
             className="py-2.5 px-5 bg-[#22c55e] hover:bg-green-600 text-white font-display font-black text-xs border-2 border-[#1a1a1a] brutal-btn cursor-pointer flex items-center justify-center gap-1.5"
           >
             <Check className="w-4 h-4" />
-            <span>Nueva Venta (Enter)</span>
+            <span>{sale.folio?.startsWith('PRUEBA') ? 'Cerrar Prueba (Enter)' : 'Nueva Venta (Enter)'}</span>
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

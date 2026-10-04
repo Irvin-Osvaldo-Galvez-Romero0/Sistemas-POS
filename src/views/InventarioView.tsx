@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Package, 
   Search, 
@@ -39,9 +40,25 @@ export const InventarioView: React.FC<InventarioViewProps> = ({
 }) => {
   const isAdmin = currentUser?.role === 'ADMIN';
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState<ProductCategory>('TODOS');
+  const [filterCategory, setFilterCategory] = useState<string>('TODOS');
   const [filterStockStatus, setFilterStockStatus] = useState<'ALL' | 'LOW' | 'OPTIMAL' | 'GRANEL'>('ALL');
   const [selectedProductForQR, setSelectedProductForQR] = useState<Product | null>(null);
+
+  // Manage label-modal-open class on body for clean print isolation
+  useEffect(() => {
+    if (selectedProductForQR) {
+      document.body.classList.add('label-modal-open');
+      return () => {
+        document.body.classList.remove('label-modal-open');
+      };
+    }
+  }, [selectedProductForQR]);
+
+  // Dynamic available categories from products catalog
+  const availableCategories = useMemo(() => {
+    const list = Array.from(new Set(products.map((p) => p.category))).filter(Boolean);
+    return ['TODOS', ...list];
+  }, [products]);
 
   // Filtered Products
   const filteredProducts = useMemo(() => {
@@ -59,6 +76,17 @@ export const InventarioView: React.FC<InventarioViewProps> = ({
       return matchSearch && matchCat && matchStock;
     });
   }, [products, searchTerm, filterCategory, filterStockStatus]);
+
+  // Virtualized Pagination Window for High-Scale Inventories (50,000+ SKUs at 60 FPS)
+  const [displayLimit, setDisplayLimit] = useState(50);
+
+  useEffect(() => {
+    setDisplayLimit(50);
+  }, [searchTerm, filterCategory, filterStockStatus]);
+
+  const visibleProducts = useMemo(() => {
+    return filteredProducts.slice(0, displayLimit);
+  }, [filteredProducts, displayLimit]);
 
   // Overall Inventory Metrics (Without cost valuation)
   const metrics = useMemo(() => {
@@ -235,6 +263,29 @@ export const InventarioView: React.FC<InventarioViewProps> = ({
             ))}
           </div>
         </div>
+
+        {/* Dynamic Category Filter Chips */}
+        {availableCategories.length > 2 && (
+          <div className="flex gap-1.5 overflow-x-auto pt-2 no-scrollbar pb-0.5 border-t border-stone-200">
+            {availableCategories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => {
+                  soundFx.playKeyClick();
+                  setFilterCategory(cat);
+                }}
+                className={`px-2.5 py-1 text-xs font-display font-bold border-2 border-[#1a1a1a] cursor-pointer whitespace-nowrap brutal-btn ${
+                  filterCategory === cat
+                    ? 'bg-[#1a1a1a] text-[#ffcc00] shadow-[2px_2px_0px_#ffcc00]'
+                    : 'bg-[#f5f0e8] text-[#1a1a1a] hover:bg-[#ffcc00]/20'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Main Reactive Data Table with Dedicated Scrollbar and Sticky Header */}
@@ -261,7 +312,7 @@ export const InventarioView: React.FC<InventarioViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y-2 divide-[#1a1a1a]/10 font-sans">
-              {filteredProducts.map((prod) => {
+              {visibleProducts.map((prod) => {
                 const isLow = prod.stock <= prod.minStock;
                 const isGranel = prod.unitType === 'kg';
 
@@ -374,6 +425,35 @@ export const InventarioView: React.FC<InventarioViewProps> = ({
           </table>
         </div>
 
+        {/* High-Scale Pagination Bar (50,000+ SKUs Support) */}
+        {filteredProducts.length > 50 && (
+          <div className="p-3 bg-white border-t-2 border-[#1a1a1a] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono-code shrink-0 select-none">
+            <span className="text-stone-700 font-bold text-center sm:text-left">
+              Mostrando <span className="text-[#1a1a1a] font-black">{visibleProducts.length}</span> de <span className="text-[#1a1a1a] font-black">{filteredProducts.length.toLocaleString()}</span> productos (Búsqueda activa sobre catálogo completo)
+            </span>
+            {filteredProducts.length > visibleProducts.length && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDisplayLimit((prev) => Math.min(prev + 50, filteredProducts.length))}
+                  className="py-1.5 px-3 bg-stone-100 hover:bg-[#ffcc00] border-2 border-[#1a1a1a] font-display font-black text-xs brutal-shadow-sm cursor-pointer active:translate-x-[1px]"
+                >
+                  + Cargar 50 más
+                </button>
+                {filteredProducts.length > visibleProducts.length + 50 && (
+                  <button
+                    type="button"
+                    onClick={() => setDisplayLimit((prev) => Math.min(prev + 200, filteredProducts.length))}
+                    className="py-1.5 px-3 bg-[#1a1a1a] text-[#ffcc00] hover:bg-stone-800 border-2 border-[#1a1a1a] font-display font-black text-xs brutal-shadow-sm cursor-pointer active:translate-x-[1px]"
+                  >
+                    + Cargar 200 más
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {filteredProducts.length === 0 && (
           <div className="p-10 text-center text-stone-500">
             <Package className="w-10 h-10 mx-auto mb-2 text-stone-400" />
@@ -390,19 +470,19 @@ export const InventarioView: React.FC<InventarioViewProps> = ({
       </div>
 
       {/* QR & Barcode Preview Modal */}
-      {selectedProductForQR && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border-4 border-[#1a1a1a] p-6 max-w-sm w-full brutal-shadow-lg text-center animate-in fade-in">
-            <div className="flex justify-between items-center mb-3">
+      {selectedProductForQR && createPortal(
+        <div id="label-modal-overlay" className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div id="label-modal-container" className="bg-white border-4 border-[#1a1a1a] p-6 max-w-sm w-full brutal-shadow-lg text-center animate-in fade-in">
+            <div className="no-print flex justify-between items-center mb-3">
               <span className="font-display font-black text-sm uppercase">Etiqueta de Góndola</span>
               <button
                 onClick={() => setSelectedProductForQR(null)}
-                className="text-stone-500 hover:text-black font-bold"
+                className="text-stone-500 hover:text-black font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
-            <div className="border-2 border-dashed border-[#1a1a1a] p-4 bg-stone-50 my-2">
+            <div id="printable-label" className="border-2 border-dashed border-[#1a1a1a] p-4 bg-stone-50 my-2">
               <div className="text-2xl mb-1">{selectedProductForQR.emoji || '📦'}</div>
               <h4 className="font-display font-black text-base leading-tight mb-1">
                 {selectedProductForQR.name}
@@ -424,12 +504,13 @@ export const InventarioView: React.FC<InventarioViewProps> = ({
                 soundFx.playKeyClick();
                 window.print();
               }}
-              className="w-full mt-3 py-2 bg-[#ffcc00] hover:bg-yellow-400 font-display font-black text-xs border-2 border-[#1a1a1a] brutal-btn cursor-pointer"
+              className="no-print w-full mt-3 py-2 bg-[#ffcc00] hover:bg-yellow-400 font-display font-black text-xs border-2 border-[#1a1a1a] brutal-btn cursor-pointer"
             >
               Imprimir Etiqueta Térmica
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
